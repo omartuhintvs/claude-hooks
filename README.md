@@ -19,21 +19,29 @@ Claude Code is powerful — which means it can accidentally push to production, 
 
 ## Installation
 
-### 1. Copy hooks
+### Automatic (recommended)
 
 ```bash
-# Clone the repo
 git clone https://github.com/omartuhintvs/claude-hooks.git
-
-# Copy hooks to Claude's hooks directory
-mkdir -p ~/.claude/hooks
-cp claude-hooks/*.py claude-hooks/*.sh ~/.claude/hooks/
-chmod +x ~/.claude/hooks/*.sh
+cd claude-hooks
+bash install.sh
 ```
 
-### 2. Wire into settings
+The script:
+- Copies all hooks to `~/.claude/hooks/`
+- Merges hook config into `~/.claude/settings.json` (backs up existing file first)
+- Requires `jq` for auto-merging settings — falls back to manual instructions if not found
 
-Add to `~/.claude/settings.json` (create if it doesn't exist):
+### Manual
+
+```bash
+# Copy hooks
+mkdir -p ~/.claude/hooks
+cp *.py *.sh ~/.claude/hooks/
+chmod +x ~/.claude/hooks/*.sh
+
+# Add to ~/.claude/settings.json
+```
 
 ```json
 {
@@ -42,31 +50,11 @@ Add to `~/.claude/settings.json` (create if it doesn't exist):
       {
         "matcher": "Bash",
         "hooks": [
-          {
-            "type": "command",
-            "command": "python3 $HOME/.claude/hooks/slackcli-guard.py",
-            "statusMessage": "Checking command safety..."
-          },
-          {
-            "type": "command",
-            "command": "python3 $HOME/.claude/hooks/doctl-guard.py",
-            "statusMessage": "Checking doctl guardrail..."
-          },
-          {
-            "type": "command",
-            "command": "python3 $HOME/.claude/hooks/kubectl-guard.py",
-            "statusMessage": "Checking kubectl guardrail..."
-          },
-          {
-            "type": "command",
-            "command": "python3 $HOME/.claude/hooks/commit-attribution-guard.py",
-            "statusMessage": "Checking commit attribution..."
-          },
-          {
-            "type": "command",
-            "command": "$HOME/.claude/hooks/block-git-push.sh",
-            "statusMessage": "Checking git push..."
-          }
+          { "type": "command", "command": "python3 $HOME/.claude/hooks/slackcli-guard.py", "statusMessage": "Checking command safety..." },
+          { "type": "command", "command": "python3 $HOME/.claude/hooks/doctl-guard.py", "statusMessage": "Checking doctl guardrail..." },
+          { "type": "command", "command": "python3 $HOME/.claude/hooks/kubectl-guard.py", "statusMessage": "Checking kubectl guardrail..." },
+          { "type": "command", "command": "python3 $HOME/.claude/hooks/commit-attribution-guard.py", "statusMessage": "Checking commit attribution..." },
+          { "type": "command", "command": "$HOME/.claude/hooks/block-git-push.sh", "statusMessage": "Checking git push..." }
         ]
       }
     ]
@@ -74,19 +62,19 @@ Add to `~/.claude/settings.json` (create if it doesn't exist):
 }
 ```
 
-> **RTK rewrite hook** is optional — only useful if you use the `rtk` CLI tool.
+### Verify
 
-### 3. Verify
-
-Start a new Claude Code session and try running a blocked command:
+Restart Claude Code, then test:
 
 ```bash
 # Should be blocked:
 doctl compute droplet list
 
-# Should be allowed:
+# Should be allowed (read-only):
 kubectl get pods
 ```
+
+> **RTK rewrite hook** (`rtk-rewrite.sh`) is optional — only useful if you use the `rtk` CLI tool.
 
 ## How hooks work
 
