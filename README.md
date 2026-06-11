@@ -19,12 +19,8 @@ Claude Code is powerful — which means it can accidentally push to production, 
 
 ## Installation
 
-### Automatic (recommended)
-
 ```bash
-git clone https://github.com/omartuhintvs/claude-hooks.git
-cd claude-hooks
-bash install.sh
+curl -fsSL https://raw.githubusercontent.com/omartuhintvs/claude-hooks/main/install.sh | bash
 ```
 
 The script:

@@ -1,36 +1,38 @@
 #!/bin/bash
+# Install claude-hooks directly from GitHub
+# Usage: curl -fsSL https://raw.githubusercontent.com/omartuhintvs/claude-hooks/main/install.sh | bash
+
 set -e
 
+REPO="https://github.com/omartuhintvs/claude-hooks.git"
 HOOKS_DIR="$HOME/.claude/hooks"
 SETTINGS_FILE="$HOME/.claude/settings.json"
+TMP_DIR="$(mktemp -d)"
 
 echo "Installing claude-hooks..."
 
-# Create hooks directory
-mkdir -p "$HOOKS_DIR"
+# Clone repo to temp dir
+git clone --depth 1 "$REPO" "$TMP_DIR/claude-hooks" --quiet
 
 # Copy hooks
-SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
-cp "$SCRIPT_DIR"/*.py "$HOOKS_DIR/"
-cp "$SCRIPT_DIR"/*.sh "$HOOKS_DIR/"
+mkdir -p "$HOOKS_DIR"
+cp "$TMP_DIR/claude-hooks"/*.py "$HOOKS_DIR/"
+cp "$TMP_DIR/claude-hooks"/*.sh "$HOOKS_DIR/"
 chmod +x "$HOOKS_DIR"/*.sh
-# Don't leave install.sh in hooks dir
 rm -f "$HOOKS_DIR/install.sh"
+rm -rf "$TMP_DIR"
 
-echo "✓ Hooks copied to $HOOKS_DIR"
+echo "✓ Hooks installed to $HOOKS_DIR"
 
-# Wire into settings.json
+# Create settings file if missing
 if [ ! -f "$SETTINGS_FILE" ]; then
   mkdir -p "$(dirname "$SETTINGS_FILE")"
   echo '{}' > "$SETTINGS_FILE"
-  echo "✓ Created $SETTINGS_FILE"
 fi
 
-# Check if jq available for merging
 if ! command -v jq &>/dev/null; then
   echo ""
-  echo "⚠  jq not found — cannot auto-update settings.json."
-  echo "   Add the following to $SETTINGS_FILE manually:"
+  echo "⚠  jq not found — add this to $SETTINGS_FILE manually:"
   echo ""
   cat <<'JSON'
 {
@@ -53,7 +55,6 @@ JSON
   exit 0
 fi
 
-# Merge hook entries into existing settings.json (replaces any existing Bash PreToolUse matcher)
 HOOK_JSON='{
   "matcher": "Bash",
   "hooks": [
@@ -65,13 +66,11 @@ HOOK_JSON='{
   ]
 }'
 
-BACKUP="$SETTINGS_FILE.bak"
-cp "$SETTINGS_FILE" "$BACKUP"
-
+cp "$SETTINGS_FILE" "$SETTINGS_FILE.bak"
 jq --argjson hook "$HOOK_JSON" '
   .hooks.PreToolUse = ((.hooks.PreToolUse // []) | map(select(.matcher != "Bash"))) + [$hook]
 ' "$SETTINGS_FILE" > "$SETTINGS_FILE.tmp" && mv "$SETTINGS_FILE.tmp" "$SETTINGS_FILE"
 
-echo "✓ settings.json updated (backup at $BACKUP)"
+echo "✓ settings.json updated (backup: $SETTINGS_FILE.bak)"
 echo ""
 echo "Done. Restart Claude Code for hooks to take effect."
