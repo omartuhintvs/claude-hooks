@@ -48,6 +48,32 @@ check "psql -l"           "psql -l"                    "rtk psql -l"
 check "already rtk no-op" "rtk git status"             ""
 check "unknown no-op"     "echo hi"                    ""
 
+# RW-1: negatives (unmapped subcommands = no-op)
+check "git reset --hard no-op"  "git reset --hard"           ""
+check "gh alias list no-op"     "gh alias list"               ""
+check "cargo run no-op"         "cargo run"                   ""
+check "npm install no-op"       "npm install"                 ""
+check "pnpm add x no-op"        "pnpm add x"                  ""
+check "pip freeze no-op"        "pip freeze"                  ""
+check "go run . no-op"          "go run ."                    ""
+check "wget url"                "wget url"                    "rtk wget url"
+check "ls -la"                  "ls -la"                      "rtk ls -la"
+
+# RW-2: positives per files.sh / js-tooling.sh
+check "head --lines=5 f"        "head --lines=5 f"            "rtk read f --max-lines 5"
+check "find by name"            "find . -name foo.txt"        "rtk find . -name foo.txt"
+check "diff two files"          "diff a.txt b.txt"            "rtk diff a.txt b.txt"
+check "tree bare"               "tree"                        "rtk tree"
+check "eslint ."                "eslint ."                    "rtk lint ."
+check "prettier -w ."           "prettier -w ."               "rtk prettier -w ."
+check "tsc -p ."                "tsc -p ."                    "rtk tsc -p ."
+check "pnpm test"               "pnpm test"                   "rtk vitest run"
+check "npx playwright test"     "npx playwright test"         "rtk playwright test"
+
+# RW-3: containers.sh flag preservation
+check "docker ps"                        "docker ps"                          "rtk docker ps"
+check "kubectl --namespace foo get pods" "kubectl --namespace foo get pods"   "rtk kubectl --namespace foo get pods"
+
 echo "----"
 echo "pass=$pass fail=$fail"
 [ "$fail" -eq 0 ]
