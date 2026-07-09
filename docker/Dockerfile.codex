@@ -1,0 +1,41 @@
+# codex leg — codex has NO hook API of its own, so its only coverage from this shield is
+# the GLOBAL git hook (core.hooksPath) that install.sh sets up for every git tool on the
+# machine. This is codex's SOLE line of defense: it does not get a native pre-exec guard
+# the way Claude Code / opencode / etc. do. If a future codex release adds a hook API, add
+# a native leg the way Dockerfile.opencode does.
+FROM debian:bookworm-slim
+
+RUN apt-get update && apt-get install -y --no-install-recommends \
+      git bash ca-certificates \
+    && rm -rf /var/lib/apt/lists/*
+
+WORKDIR /src
+COPY . /src
+
+RUN git config --global user.name "ci" \
+    && git config --global user.email ci@technovativesolutions.co.uk
+# install.sh clones the committed HEAD of /src — snapshot the COPYed working tree first.
+RUN git -C /src add -A && git -C /src commit -qm "ci: snapshot working tree" || true
+# Install from the local tree (committed HEAD) instead of GitHub.
+RUN TVS_SHIELD_REPO=/src bash /src/install.sh
+
+CMD ["bash", "-lc", "\
+  set -uo pipefail; \
+  echo '== codex leg: only coverage is the global git hook =='; \
+  hp=$(git config --global core.hooksPath || true); \
+  if [ -z \"$hp\" ]; then echo 'MISSING core.hooksPath — install.sh did not wire the global git hook'; echo 'CODEX SMOKE: FAIL'; exit 1; fi; \
+  echo \"  ok  core.hooksPath=$hp\"; \
+  repo=$(mktemp -d); \
+  git init -q \"$repo\"; \
+  git -C \"$repo\" remote add origin https://github.com/technovativesolutions/x.git; \
+  git -C \"$repo\" config user.email nobody@gmail.com; \
+  echo hi > \"$repo/f.txt\"; \
+  git -C \"$repo\" add f.txt; \
+  if git -C \"$repo\" commit -m 'attempt' >/tmp/codex_commit.out 2>&1; then \
+    echo 'FAIL: commit with personal gmail on a TVS-org repo was NOT blocked'; cat /tmp/codex_commit.out; \
+    echo 'CODEX SMOKE: FAIL'; exit 1; \
+  else \
+    echo 'PASS: global git hook blocked the commit'; cat /tmp/codex_commit.out; \
+    echo 'CODEX SMOKE: PASS'; exit 0; \
+  fi \
+"]

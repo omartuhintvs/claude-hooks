@@ -2,13 +2,16 @@
 // opencode calls `tool.execute.before` in-process and blocks when the hook throws.
 // Install to ~/.config/opencode/plugin/ (global) or .opencode/plugin/ (project);
 // identity-check.mjs sits alongside it. Docs: https://opencode.ai/docs/plugins/
-import { runIdentityGuard } from "./identity-check.mjs";
+import { runGuardAll } from "./guard-check.mjs";
+import { runRewrite } from "./rewrite-check.mjs";
 
 export default {
   "tool.execute.before": async (input, output) => {
     if (input?.tool !== "bash") return;
     const command = output?.args?.command;
-    const res = await runIdentityGuard(command, output?.args?.cwd);
-    if (res.block) throw new Error(res.reason || "TVS identity guard: commit blocked.");
+    const res = await runGuardAll(command, output?.args?.cwd);
+    if (res.block) throw new Error(res.reason || "TVS guard: command blocked.");
+    const { command: rewritten } = await runRewrite(command, output?.args?.cwd);
+    if (rewritten) output.args.command = rewritten;
   },
 };

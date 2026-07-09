@@ -16,6 +16,10 @@ RUN git config --global user.email ci@technovativesolutions.co.uk \
     && git config --global user.name "ci" \
     && mkdir -p /root/.claude          # pretend Claude Code is present so layer-2 installs
 
+# install.sh clones the committed HEAD of /src — snapshot the COPYed working tree
+# (incl. any uncommitted changes) into a commit so the clone sees the full stack.
+RUN git -C /src add -A && git -C /src commit -qm "ci: snapshot working tree" || true
+
 # Install from the local tree (committed HEAD) instead of GitHub.
 RUN TVS_SHIELD_REPO=/src bash /src/install.sh
 

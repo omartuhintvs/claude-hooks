@@ -6,7 +6,8 @@
 // documented, so this reads the command defensively from several likely fields; the git
 // hook remains the guaranteed backstop. Install to ~/.cline/plugins/ (global) or
 // .cline/plugins/ (project). Docs: https://docs.cline.bot/sdk/plugin-examples.md
-import { runIdentityGuard } from "./identity-check.mjs";
+import { runGuardAll } from "./guard-check.mjs";
+import { runRewrite } from "./rewrite-check.mjs";
 
 function extractCommand(context) {
   return (
@@ -22,9 +23,13 @@ export default {
   id: "tvs-identity-guard",
   beforeTool: async (context) => {
     const command = extractCommand(context);
-    const res = await runIdentityGuard(command, context?.cwd);
+    const res = await runGuardAll(command, context?.cwd);
     if (res.block) {
-      return { skip: true, reason: res.reason || "TVS identity guard: commit blocked." };
+      return { skip: true, reason: res.reason || "TVS guard: command blocked." };
     }
+    // ponytail: Cline's beforeTool hook return contract (documented: { skip, reason }) has
+    // no confirmed field for mutating the outgoing command, so rewriting is a no-op here —
+    // blocks still apply via runGuardAll above.
+    void runRewrite;
   },
 };
