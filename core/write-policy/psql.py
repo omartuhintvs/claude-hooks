@@ -1,8 +1,13 @@
 """psql/mysql destructive-SQL policy. Copied verbatim from slackcli-guard.py."""
 import re
 
+# Match a destructive keyword anywhere in the psql/mysql invocation, not just
+# after -c/-e. This also covers heredoc (`psql db <<SQL ... DROP TABLE ...`)
+# and pasted multi-statement bodies where no inline-SQL flag is present.
+# The keyword shapes stay specific (DROP <object>, TRUNCATE, DELETE FROM) so a
+# harmless `SELECT * FROM dropbox_events` doesn't trip it.
 DB_INLINE_SQL = re.compile(
-    r'\b(psql|mysql)\b[^|;&]*\s(-c|--command|-e)\s*[^|;&]*\b('
+    r'\b(psql|mysql)\b[^|;&]*\b('
     r'DROP\s+(TABLE|DATABASE|SCHEMA|INDEX|VIEW|FUNCTION|PROCEDURE|TRIGGER|SEQUENCE)'
     r'|TRUNCATE\b'
     r'|DELETE\s+FROM\b'

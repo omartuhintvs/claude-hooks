@@ -8,7 +8,9 @@ import subprocess
 import sys
 
 REPO_ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
-GUARD = os.path.join(REPO_ROOT, "guards", "write-guard.py")
+# TVS_WRITE_GUARD lets the docker smoke test drive the *installed* dispatcher
+# (~/.claude/hooks/write-guard.py) with the exact same vectors.
+GUARD = os.environ.get("TVS_WRITE_GUARD", os.path.join(REPO_ROOT, "guards", "write-guard.py"))
 
 with open(os.path.join(REPO_ROOT, "core", "write-vectors.json")) as f:
     vectors = json.load(f)["vectors"]

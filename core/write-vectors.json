@@ -1,158 +1,529 @@
 {
   "_comment": "Write-policy vectors. expect in {deny,ask,allow}. Includes false-positive allow guards called out in the original comments.",
   "vectors": [
-    {"cmd": "slackcli messages send --channel x", "expect": "deny"},
-    {"cmd": "slackcli conversations archive x", "expect": "deny"},
-    {"cmd": "slackcli auth login", "expect": "deny"},
-    {"cmd": "slackcli messages list", "expect": "allow"},
-    {"cmd": "slackcli conversations list", "expect": "allow"},
-
-    {"cmd": "gog gmail send --to x", "expect": "deny"},
-    {"cmd": "gog drive delete f", "expect": "deny"},
-    {"cmd": "gog upload file", "expect": "deny"},
-    {"cmd": "gog gmail list", "expect": "allow"},
-    {"cmd": "gog gmail read | grep send", "expect": "allow"},
-
-    {"cmd": "acli workitem create --summary x", "expect": "ask"},
-    {"cmd": "acli project delete X", "expect": "ask"},
-    {"cmd": "acli admin whatever", "expect": "ask"},
-    {"cmd": "acli workitem view ABC-1", "expect": "allow"},
-    {"cmd": "acli workitem list | grep create", "expect": "allow"},
-
-    {"cmd": "gh repo delete foo", "expect": "deny"},
-    {"cmd": "gh secret set X", "expect": "deny"},
-    {"cmd": "gh api -X POST /repos", "expect": "deny"},
-    {"cmd": "gh api --method DELETE /x", "expect": "deny"},
-    {"cmd": "gh repo view", "expect": "allow"},
-    {"cmd": "gh pr list", "expect": "allow"},
-    {"cmd": "gh api /repos/o/r -q .name", "expect": "allow"},
-    {"cmd": "gh issue comment 1 --body 'please delete this later'", "expect": "allow"},
-
-    {"cmd": "gcloud compute instances delete vm", "expect": "deny"},
-    {"cmd": "gcloud services disable x", "expect": "deny"},
-    {"cmd": "gcloud config unset project", "expect": "deny"},
-    {"cmd": "gcloud compute instances list", "expect": "allow"},
-    {"cmd": "gcloud projects describe p", "expect": "allow"},
-
-    {"cmd": "psql -c 'DROP TABLE users'", "expect": "deny"},
-    {"cmd": "mysql -e 'TRUNCATE t'", "expect": "deny"},
-    {"cmd": "psql -c 'DELETE FROM t WHERE id=1'", "expect": "deny"},
-    {"cmd": "psql -c 'SELECT * FROM users'", "expect": "allow"},
-    {"cmd": "psql -c 'SELECT 1'", "expect": "allow"},
-
-    {"cmd": "aws s3api delete-bucket --bucket b", "expect": "deny"},
-    {"cmd": "aws ec2 terminate-instances --instance-ids i", "expect": "deny"},
-    {"cmd": "aws s3 rb s3://b", "expect": "deny"},
-    {"cmd": "aws s3 rm s3://b/x --recursive", "expect": "deny"},
-    {"cmd": "aws s3 ls", "expect": "allow"},
-    {"cmd": "aws s3 rm s3://b/x", "expect": "allow"},
-
-    {"cmd": "docker rm container", "expect": "deny"},
-    {"cmd": "docker system prune", "expect": "deny"},
-    {"cmd": "docker rmi image", "expect": "deny"},
-    {"cmd": "docker compose down", "expect": "deny"},
-    {"cmd": "docker run --rm -it ubuntu bash", "expect": "allow"},
-    {"cmd": "docker ps", "expect": "allow"},
-    {"cmd": "docker compose ps", "expect": "allow"},
-
-    {"cmd": "heroku apps:destroy -a app", "expect": "deny"},
-    {"cmd": "heroku pg:reset DATABASE", "expect": "deny"},
-    {"cmd": "heroku config:set K=v", "expect": "deny"},
-    {"cmd": "heroku logs --tail", "expect": "allow"},
-    {"cmd": "heroku ps", "expect": "allow"},
-
-    {"cmd": "vercel remove proj", "expect": "deny"},
-    {"cmd": "vercel deploy --prod", "expect": "deny"},
-    {"cmd": "vercel env rm KEY", "expect": "deny"},
-    {"cmd": "vercel ls", "expect": "allow"},
-    {"cmd": "vercel deploy", "expect": "allow"},
-
-    {"cmd": "helm uninstall release", "expect": "deny"},
-    {"cmd": "helm rollback release 1", "expect": "deny"},
-    {"cmd": "helm repo add x https://y", "expect": "deny"},
-    {"cmd": "helm list", "expect": "allow"},
-    {"cmd": "helm status release", "expect": "allow"},
-
-    {"cmd": "supabase db reset", "expect": "deny"},
-    {"cmd": "supabase projects delete ref", "expect": "deny"},
-    {"cmd": "supabase secrets set K=v", "expect": "deny"},
-    {"cmd": "supabase db push", "expect": "allow"},
-    {"cmd": "supabase projects list", "expect": "allow"},
-
-    {"cmd": "ansible-playbook site.yml", "expect": "deny"},
-    {"cmd": "ansible all -m shell -a 'ls'", "expect": "deny"},
-    {"cmd": "ansible all -m ping", "expect": "allow"},
-    {"cmd": "ansible all -m setup", "expect": "allow"},
-
-    {"cmd": "rsync -av --delete src/ dst/", "expect": "deny"},
-    {"cmd": "rsync -av src/ dst/", "expect": "allow"},
-
-    {"cmd": "gh api -X PUT /x", "expect": "deny"},
-    {"cmd": "gh api -X PATCH /x", "expect": "deny"},
-    {"cmd": "gh api -XPOST /repos", "expect": "deny"},
-    {"cmd": "gh api --input body.json /x", "expect": "deny"},
-    {"cmd": "gh api /repos/o/r", "expect": "allow"},
-    {"cmd": "gh api graphql -f query=xyz", "expect": "allow"},
-
-    {"cmd": "gh repo archive x", "expect": "deny"},
-    {"cmd": "gh repo rename a b", "expect": "deny"},
-    {"cmd": "gh variable set K", "expect": "deny"},
-    {"cmd": "gh workflow run wf", "expect": "deny"},
-    {"cmd": "gh release delete v1", "expect": "deny"},
-    {"cmd": "gh label delete bug", "expect": "deny"},
-    {"cmd": "gh workflow view", "expect": "allow"},
-    {"cmd": "gh release view v1", "expect": "allow"},
-
-    {"cmd": "docker volume rm v", "expect": "deny"},
-    {"cmd": "docker network prune", "expect": "deny"},
-    {"cmd": "docker container prune", "expect": "deny"},
-    {"cmd": "docker image prune", "expect": "deny"},
-    {"cmd": "docker stack rm s", "expect": "deny"},
-    {"cmd": "docker service rm svc", "expect": "deny"},
-    {"cmd": "docker swarm leave", "expect": "deny"},
-    {"cmd": "docker volume ls", "expect": "allow"},
-    {"cmd": "docker network inspect n", "expect": "allow"},
-
-    {"cmd": "psql -c 'DROP DATABASE app'", "expect": "deny"},
-    {"cmd": "psql -c 'DROP SCHEMA s'", "expect": "deny"},
-    {"cmd": "psql -c 'DROP INDEX i'", "expect": "deny"},
-    {"cmd": "psql --command 'DROP TABLE t'", "expect": "deny"},
-    {"cmd": "psql -c 'SELECT count(*)'", "expect": "allow"},
-
-    {"cmd": "slackcli messages delete x", "expect": "deny"},
-    {"cmd": "slackcli conversations delete x", "expect": "deny"},
-    {"cmd": "slackcli canvas delete x", "expect": "deny"},
-    {"cmd": "slackcli auth logout", "expect": "deny"},
-
-    {"cmd": "gog gmail delete x", "expect": "deny"},
-    {"cmd": "gog drive trash f", "expect": "deny"},
-    {"cmd": "gog cal delete x", "expect": "deny"},
-
-    {"cmd": "acli workitem comment add ABC-1", "expect": "ask"},
-    {"cmd": "acli workitem attachment upload ABC-1", "expect": "ask"},
-    {"cmd": "acli auth login", "expect": "ask"},
-    {"cmd": "acli sprint create", "expect": "ask"},
-
-    {"cmd": "gcloud projects remove-iam-policy-binding p", "expect": "deny"},
-    {"cmd": "gcloud auth revoke", "expect": "deny"},
-
-    {"cmd": "aws iam detach-role-policy --role-name r", "expect": "deny"},
-    {"cmd": "aws ec2 deregister-image --image-id i", "expect": "deny"},
-
-    {"cmd": "heroku addons:destroy x", "expect": "deny"},
-    {"cmd": "heroku config:unset K", "expect": "deny"},
-
-    {"cmd": "vercel domains rm d", "expect": "deny"},
-    {"cmd": "vercel projects rm p", "expect": "deny"},
-
-    {"cmd": "helm delete r", "expect": "deny"},
-    {"cmd": "helm repo remove x", "expect": "deny"},
-
-    {"cmd": "supabase secrets unset K", "expect": "deny"},
-    {"cmd": "supabase orgs delete id", "expect": "deny"},
-
-    {"cmd": "ansible all -m command -a uptime", "expect": "deny"},
-    {"cmd": "ansible all -m raw -a x", "expect": "deny"},
-    {"cmd": "ansible all -m script -a s.sh", "expect": "deny"}
+    {
+      "cmd": "slackcli messages send --channel x",
+      "expect": "deny"
+    },
+    {
+      "cmd": "slackcli conversations archive x",
+      "expect": "deny"
+    },
+    {
+      "cmd": "slackcli auth login",
+      "expect": "deny"
+    },
+    {
+      "cmd": "slackcli messages list",
+      "expect": "allow"
+    },
+    {
+      "cmd": "slackcli conversations list",
+      "expect": "allow"
+    },
+    {
+      "cmd": "gog gmail send --to x",
+      "expect": "deny"
+    },
+    {
+      "cmd": "gog drive delete f",
+      "expect": "deny"
+    },
+    {
+      "cmd": "gog upload file",
+      "expect": "deny"
+    },
+    {
+      "cmd": "gog gmail list",
+      "expect": "allow"
+    },
+    {
+      "cmd": "gog gmail read | grep send",
+      "expect": "allow"
+    },
+    {
+      "cmd": "acli workitem create --summary x",
+      "expect": "ask"
+    },
+    {
+      "cmd": "acli project delete X",
+      "expect": "ask"
+    },
+    {
+      "cmd": "acli admin whatever",
+      "expect": "ask"
+    },
+    {
+      "cmd": "acli workitem view ABC-1",
+      "expect": "allow"
+    },
+    {
+      "cmd": "acli workitem list | grep create",
+      "expect": "allow"
+    },
+    {
+      "cmd": "gh repo delete foo",
+      "expect": "deny"
+    },
+    {
+      "cmd": "gh secret set X",
+      "expect": "deny"
+    },
+    {
+      "cmd": "gh api -X POST /repos",
+      "expect": "deny"
+    },
+    {
+      "cmd": "gh api --method DELETE /x",
+      "expect": "deny"
+    },
+    {
+      "cmd": "gh repo view",
+      "expect": "allow"
+    },
+    {
+      "cmd": "gh pr list",
+      "expect": "allow"
+    },
+    {
+      "cmd": "gh api /repos/o/r -q .name",
+      "expect": "allow"
+    },
+    {
+      "cmd": "gh issue comment 1 --body 'please delete this later'",
+      "expect": "allow"
+    },
+    {
+      "cmd": "gcloud compute instances delete vm",
+      "expect": "deny"
+    },
+    {
+      "cmd": "gcloud services disable x",
+      "expect": "deny"
+    },
+    {
+      "cmd": "gcloud config unset project",
+      "expect": "deny"
+    },
+    {
+      "cmd": "gcloud compute instances list",
+      "expect": "allow"
+    },
+    {
+      "cmd": "gcloud projects describe p",
+      "expect": "allow"
+    },
+    {
+      "cmd": "psql -c 'DROP TABLE users'",
+      "expect": "deny"
+    },
+    {
+      "cmd": "mysql -e 'TRUNCATE t'",
+      "expect": "deny"
+    },
+    {
+      "cmd": "psql -c 'DELETE FROM t WHERE id=1'",
+      "expect": "deny"
+    },
+    {
+      "cmd": "psql -c 'SELECT * FROM users'",
+      "expect": "allow"
+    },
+    {
+      "cmd": "psql -c 'SELECT 1'",
+      "expect": "allow"
+    },
+    {
+      "cmd": "aws s3api delete-bucket --bucket b",
+      "expect": "deny"
+    },
+    {
+      "cmd": "aws ec2 terminate-instances --instance-ids i",
+      "expect": "deny"
+    },
+    {
+      "cmd": "aws s3 rb s3://b",
+      "expect": "deny"
+    },
+    {
+      "cmd": "aws s3 rm s3://b/x --recursive",
+      "expect": "deny"
+    },
+    {
+      "cmd": "aws s3 ls",
+      "expect": "allow"
+    },
+    {
+      "cmd": "aws s3 rm s3://b/x",
+      "expect": "allow"
+    },
+    {
+      "cmd": "docker rm container",
+      "expect": "deny"
+    },
+    {
+      "cmd": "docker system prune",
+      "expect": "deny"
+    },
+    {
+      "cmd": "docker rmi image",
+      "expect": "deny"
+    },
+    {
+      "cmd": "docker compose down",
+      "expect": "deny"
+    },
+    {
+      "cmd": "docker run --rm -it ubuntu bash",
+      "expect": "allow"
+    },
+    {
+      "cmd": "docker ps",
+      "expect": "allow"
+    },
+    {
+      "cmd": "docker compose ps",
+      "expect": "allow"
+    },
+    {
+      "cmd": "heroku apps:destroy -a app",
+      "expect": "deny"
+    },
+    {
+      "cmd": "heroku pg:reset DATABASE",
+      "expect": "deny"
+    },
+    {
+      "cmd": "heroku config:set K=v",
+      "expect": "deny"
+    },
+    {
+      "cmd": "heroku logs --tail",
+      "expect": "allow"
+    },
+    {
+      "cmd": "heroku ps",
+      "expect": "allow"
+    },
+    {
+      "cmd": "vercel remove proj",
+      "expect": "deny"
+    },
+    {
+      "cmd": "vercel deploy --prod",
+      "expect": "deny"
+    },
+    {
+      "cmd": "vercel env rm KEY",
+      "expect": "deny"
+    },
+    {
+      "cmd": "vercel ls",
+      "expect": "allow"
+    },
+    {
+      "cmd": "vercel deploy",
+      "expect": "allow"
+    },
+    {
+      "cmd": "helm uninstall release",
+      "expect": "deny"
+    },
+    {
+      "cmd": "helm rollback release 1",
+      "expect": "deny"
+    },
+    {
+      "cmd": "helm repo add x https://y",
+      "expect": "deny"
+    },
+    {
+      "cmd": "helm list",
+      "expect": "allow"
+    },
+    {
+      "cmd": "helm status release",
+      "expect": "allow"
+    },
+    {
+      "cmd": "supabase db reset",
+      "expect": "deny"
+    },
+    {
+      "cmd": "supabase projects delete ref",
+      "expect": "deny"
+    },
+    {
+      "cmd": "supabase secrets set K=v",
+      "expect": "deny"
+    },
+    {
+      "cmd": "supabase db push",
+      "expect": "allow"
+    },
+    {
+      "cmd": "supabase projects list",
+      "expect": "allow"
+    },
+    {
+      "cmd": "ansible-playbook site.yml",
+      "expect": "deny"
+    },
+    {
+      "cmd": "ansible all -m shell -a 'ls'",
+      "expect": "deny"
+    },
+    {
+      "cmd": "ansible all -m ping",
+      "expect": "allow"
+    },
+    {
+      "cmd": "ansible all -m setup",
+      "expect": "allow"
+    },
+    {
+      "cmd": "rsync -av --delete src/ dst/",
+      "expect": "deny"
+    },
+    {
+      "cmd": "rsync -av src/ dst/",
+      "expect": "allow"
+    },
+    {
+      "cmd": "gh api -X PUT /x",
+      "expect": "deny"
+    },
+    {
+      "cmd": "gh api -X PATCH /x",
+      "expect": "deny"
+    },
+    {
+      "cmd": "gh api -XPOST /repos",
+      "expect": "deny"
+    },
+    {
+      "cmd": "gh api --input body.json /x",
+      "expect": "deny"
+    },
+    {
+      "cmd": "gh api /repos/o/r",
+      "expect": "allow"
+    },
+    {
+      "cmd": "gh api graphql -f query=xyz",
+      "expect": "allow"
+    },
+    {
+      "cmd": "gh repo archive x",
+      "expect": "deny"
+    },
+    {
+      "cmd": "gh repo rename a b",
+      "expect": "deny"
+    },
+    {
+      "cmd": "gh variable set K",
+      "expect": "deny"
+    },
+    {
+      "cmd": "gh workflow run wf",
+      "expect": "deny"
+    },
+    {
+      "cmd": "gh release delete v1",
+      "expect": "deny"
+    },
+    {
+      "cmd": "gh label delete bug",
+      "expect": "deny"
+    },
+    {
+      "cmd": "gh workflow view",
+      "expect": "allow"
+    },
+    {
+      "cmd": "gh release view v1",
+      "expect": "allow"
+    },
+    {
+      "cmd": "docker volume rm v",
+      "expect": "deny"
+    },
+    {
+      "cmd": "docker network prune",
+      "expect": "deny"
+    },
+    {
+      "cmd": "docker container prune",
+      "expect": "deny"
+    },
+    {
+      "cmd": "docker image prune",
+      "expect": "deny"
+    },
+    {
+      "cmd": "docker stack rm s",
+      "expect": "deny"
+    },
+    {
+      "cmd": "docker service rm svc",
+      "expect": "deny"
+    },
+    {
+      "cmd": "docker swarm leave",
+      "expect": "deny"
+    },
+    {
+      "cmd": "docker volume ls",
+      "expect": "allow"
+    },
+    {
+      "cmd": "docker network inspect n",
+      "expect": "allow"
+    },
+    {
+      "cmd": "psql -c 'DROP DATABASE app'",
+      "expect": "deny"
+    },
+    {
+      "cmd": "psql -c 'DROP SCHEMA s'",
+      "expect": "deny"
+    },
+    {
+      "cmd": "psql -c 'DROP INDEX i'",
+      "expect": "deny"
+    },
+    {
+      "cmd": "psql --command 'DROP TABLE t'",
+      "expect": "deny"
+    },
+    {
+      "cmd": "psql -c 'SELECT count(*)'",
+      "expect": "allow"
+    },
+    {
+      "cmd": "slackcli messages delete x",
+      "expect": "deny"
+    },
+    {
+      "cmd": "slackcli conversations delete x",
+      "expect": "deny"
+    },
+    {
+      "cmd": "slackcli canvas delete x",
+      "expect": "deny"
+    },
+    {
+      "cmd": "slackcli auth logout",
+      "expect": "deny"
+    },
+    {
+      "cmd": "gog gmail delete x",
+      "expect": "deny"
+    },
+    {
+      "cmd": "gog drive trash f",
+      "expect": "deny"
+    },
+    {
+      "cmd": "gog cal delete x",
+      "expect": "deny"
+    },
+    {
+      "cmd": "acli workitem comment add ABC-1",
+      "expect": "ask"
+    },
+    {
+      "cmd": "acli workitem attachment upload ABC-1",
+      "expect": "ask"
+    },
+    {
+      "cmd": "acli auth login",
+      "expect": "ask"
+    },
+    {
+      "cmd": "acli sprint create",
+      "expect": "ask"
+    },
+    {
+      "cmd": "gcloud projects remove-iam-policy-binding p",
+      "expect": "deny"
+    },
+    {
+      "cmd": "gcloud auth revoke",
+      "expect": "deny"
+    },
+    {
+      "cmd": "aws iam detach-role-policy --role-name r",
+      "expect": "deny"
+    },
+    {
+      "cmd": "aws ec2 deregister-image --image-id i",
+      "expect": "deny"
+    },
+    {
+      "cmd": "heroku addons:destroy x",
+      "expect": "deny"
+    },
+    {
+      "cmd": "heroku config:unset K",
+      "expect": "deny"
+    },
+    {
+      "cmd": "vercel domains rm d",
+      "expect": "deny"
+    },
+    {
+      "cmd": "vercel projects rm p",
+      "expect": "deny"
+    },
+    {
+      "cmd": "helm delete r",
+      "expect": "deny"
+    },
+    {
+      "cmd": "helm repo remove x",
+      "expect": "deny"
+    },
+    {
+      "cmd": "supabase secrets unset K",
+      "expect": "deny"
+    },
+    {
+      "cmd": "supabase orgs delete id",
+      "expect": "deny"
+    },
+    {
+      "cmd": "ansible all -m command -a uptime",
+      "expect": "deny"
+    },
+    {
+      "cmd": "ansible all -m raw -a x",
+      "expect": "deny"
+    },
+    {
+      "cmd": "ansible all -m script -a s.sh",
+      "expect": "deny"
+    },
+    {
+      "cmd": "psql mydb <<SQL\nDROP TABLE users;\nSQL",
+      "expect": "deny"
+    },
+    {
+      "cmd": "psql mydb <<'EOF'\nTRUNCATE accounts;\nEOF",
+      "expect": "deny"
+    },
+    {
+      "cmd": "mysql db <<SQL\nDELETE FROM sessions;\nSQL",
+      "expect": "deny"
+    },
+    {
+      "cmd": "psql -c 'SELECT * FROM dropbox_events'",
+      "expect": "allow"
+    },
+    {
+      "cmd": "psql mydb <<SQL\nSELECT count(*) FROM users;\nSQL",
+      "expect": "allow"
+    }
   ]
 }
