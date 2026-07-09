@@ -1,0 +1,22 @@
+# Tier C — live LLM-in-the-loop smoke. Needs ANTHROPIC_API_KEY at run time.
+# Installs the guards, then drives a real headless Claude Code that is asked to
+# push, and asserts the guard blocked it. Non-deterministic (LLM phrasing) and
+# costs tokens — a manual smoke / demo, NOT a CI gate.
+FROM node:20-slim
+
+RUN apt-get update && apt-get install -y --no-install-recommends \
+      git jq python3 ca-certificates bash \
+    && rm -rf /var/lib/apt/lists/*
+
+RUN npm install -g @anthropic-ai/claude-code
+
+WORKDIR /src
+COPY . /src
+
+RUN git config --global user.email ci@technovativesolutions.co.uk \
+    && git config --global user.name "ci" \
+    && mkdir -p /root/.claude
+
+RUN TVS_SHIELD_REPO=/src bash /src/install.sh
+
+CMD ["bash", "/src/docker/live-smoke.sh"]

@@ -4,7 +4,8 @@
 set -uo pipefail
 
 REPO_ROOT="$(cd "$(dirname "$0")/.." && pwd)"
-HOOK="$REPO_ROOT/block-git-push.sh"
+# TVS_GIT_PUSH_HOOK lets the docker smoke test drive the installed copy.
+HOOK="${TVS_GIT_PUSH_HOOK:-$REPO_ROOT/block-git-push.sh}"
 
 pass=0; fail=0
 

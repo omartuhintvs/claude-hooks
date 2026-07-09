@@ -1,0 +1,22 @@
+# Tier A — deterministic install + replay smoke test. No LLM, no API key.
+# Runs the real install.sh against the repo, then replays the existing
+# vector suites against the *installed* hook artifacts to prove the
+# settings.json wiring + hooksPath activation actually engage.
+FROM python:3.12-slim
+
+RUN apt-get update && apt-get install -y --no-install-recommends \
+      git jq nodejs ca-certificates bash \
+    && rm -rf /var/lib/apt/lists/*
+
+WORKDIR /src
+COPY . /src
+
+# install.sh clones from a git repo; a container identity keeps clone/config happy.
+RUN git config --global user.email ci@technovativesolutions.co.uk \
+    && git config --global user.name "ci" \
+    && mkdir -p /root/.claude          # pretend Claude Code is present so layer-2 installs
+
+# Install from the local tree (committed HEAD) instead of GitHub.
+RUN TVS_SHIELD_REPO=/src bash /src/install.sh
+
+CMD ["bash", "/src/docker/smoke.sh"]

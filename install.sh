@@ -10,7 +10,9 @@
 
 set -e
 
-REPO="https://github.com/omartuhintvs/tvs-agent-shield.git"
+# Override for tests / air-gapped installs: TVS_SHIELD_REPO can point at a
+# local path or fork. `git clone` accepts a filesystem path just fine.
+REPO="${TVS_SHIELD_REPO:-https://github.com/omartuhintvs/tvs-agent-shield.git}"
 CANON="$HOME/.config/tvs-agent-shield"          # canonical shared location
 GUARD="$CANON/guards/identity-guard.sh"
 GIT_HOOKS_DIR="$CANON/guards/git-hooks"
