@@ -6,16 +6,16 @@ Code) and blocks on exit code 2. Install to ~/.hermes/plugins/tvs_identity_guard
 """
 import json
 import os
-import re
 import subprocess
+
+try:
+    from .policy import is_commit_command
+except ImportError:
+    from policy import is_commit_command
 
 GUARD = os.environ.get(
     "TVS_IDENTITY_GUARD",
-    os.path.expanduser("~/.config/tvs-agent-shield/identity-guard.sh"),
-)
-# Only commit-creating git commands; push is covered by the git pre-push hook.
-COMMITISH = re.compile(
-    r"\bgit\b[^|&;]*\b(commit|amend|cherry-pick|rebase|revert|merge|commit-tree|am)\b"
+    os.path.expanduser("~/.config/tvs-agent-shield/guards/identity-guard.sh"),
 )
 
 
@@ -27,7 +27,7 @@ def scan(tool_name, args, *_, **__):
     if tool_name not in ("bash", "shell"):
         return {"action": "allow"}
     command = (args or {}).get("command", "") if isinstance(args, dict) else ""
-    if not command or not COMMITISH.search(command):
+    if not command or not is_commit_command(command):
         return {"action": "allow"}
     payload = json.dumps({"tool_input": {"command": command}, "cwd": os.getcwd()})
     try:

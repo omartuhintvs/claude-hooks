@@ -15,16 +15,13 @@ input=$(cat)
 command=$(echo "$input" | jq -r '.tool_input.command // empty')
 cwd=$(echo "$input" | jq -r '.cwd // empty')
 
+TVS_SHIELD_HOME="${TVS_SHIELD_HOME:-$HOME/.config/tvs-agent-shield}"
+. "$TVS_SHIELD_HOME/core/policy.sh" || { echo "TVS shield: core/policy.sh missing at $TVS_SHIELD_HOME — refusing commit-ish commands." >&2; exit 2; }
+
 # Any commit-creating git verb, incl. common aliases and verbs that write commits.
-verbs='commit|amend|cherry-pick|rebase|revert|merge|commit-tree|am'
-if ! echo "$command" | grep -qE "\bgit\b[^|&;]*\b($verbs)\b"; then
+if ! tvs_is_commit_cmd "$command"; then
   exit 0
 fi
-
-# A single extracted email token is matched whole, so the $ anchor is safe against
-# suffix tricks (evil@technovativesolutions.co.uk.attacker.com won't match).
-WORK_RE='@(technovativesolutions\.co\.uk|digiprodpass\.com)$'
-EMAIL='[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Za-z]{2,}'
 
 # Resolve the repo the commit targets: honor `git -C <path>`, `--git-dir=`, `GIT_DIR=`,
 # a leading `cd`/`pushd <path>`, else the session cwd. NO eval — quote-strip + tilde only.
@@ -54,23 +51,20 @@ fi
 
 # TVS repo? By remote org, or by a TVS org marker in the command itself.
 is_work=0
-echo "$remote"  | grep -qiE '[:/](technovativesolutions|digiprodpass)/' && is_work=1
-echo "$command" | grep -qiE '[:/](technovativesolutions|digiprodpass)/' && is_work=1
+tvs_url_is_work "$remote" && is_work=1
+tvs_url_is_work "$command" && is_work=1
 [ "$is_work" = 1 ] || exit 0
 
 # Emails in an IDENTITY-ASSIGNMENT position only (never the commit message). Covers
 # -c user.email=X, GIT_AUTHOR_EMAIL=X, GIT_COMMITTER_EMAIL=X, and --author="N <X>".
-assigned=$(
-  echo "$command" | grep -oiE "(user\.email=|GIT_AUTHOR_EMAIL=|GIT_COMMITTER_EMAIL=)$EMAIL" | grep -oiE "$EMAIL"
-  echo "$command" | grep -oiE -- "--author[= ]+\"?[^\"]*\"?" | grep -oiE "$EMAIL"
-)
+assigned=$(tvs_assigned_emails "$command")
 
 # Any injected identity email that is NOT a company address -> block.
 injected_any=0
 while IFS= read -r e; do
   [ -z "$e" ] && continue
   injected_any=1
-  if ! echo "$e" | grep -qiE "$WORK_RE"; then
+  if ! tvs_is_work_email "$e"; then
     echo "ERROR: TVS repo but the commit injects a non-company email ($e). Use a company identity: git config user.email you@technovativesolutions.co.uk" >&2
     exit 2
   fi
@@ -79,7 +73,7 @@ $assigned
 EOF
 
 # No inline identity override: fall back to the stored config email.
-if [ "$injected_any" = 0 ] && [ -n "$email" ] && ! echo "$email" | grep -qiE "$WORK_RE"; then
+if [ "$injected_any" = 0 ] && [ -n "$email" ] && ! tvs_is_work_email "$email"; then
   echo "ERROR: TVS repo but user.email is ($email), not a company address. Set it: git config user.email you@technovativesolutions.co.uk" >&2
   exit 2
 fi

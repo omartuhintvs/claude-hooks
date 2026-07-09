@@ -23,18 +23,18 @@
 name=$(basename "$0")
 common=$(git rev-parse --git-common-dir 2>/dev/null)
 
-WORK_DOMAINS='@(technovativesolutions\.co\.uk|digiprodpass\.com)$'
-WORK_ORGS='[:/](technovativesolutions|digiprodpass)/'
+TVS_SHIELD_HOME="${TVS_SHIELD_HOME:-$HOME/.config/tvs-agent-shield}"
+. "$TVS_SHIELD_HOME/core/policy.sh" || { echo "TVS shield: core/policy.sh missing at $TVS_SHIELD_HOME — refusing." >&2; exit 1; }
 
 ident_email() { git var "$1" 2>/dev/null | sed -n 's/.*<\(.*\)>.*/\1/p'; }
-is_work_email() { echo "$1" | grep -qiE "$WORK_DOMAINS"; }
+is_work_email() { tvs_is_work_email "$1"; }
 strict_author() { [ "$(git config --bool hooks.requireWorkAuthor 2>/dev/null)" = true ]; }
 
 # A repo is TVS if any configured remote URL is in a TVS org. $1, when given, is a
 # push DESTINATION url that takes precedence (catches explicit-URL pushes).
 is_work_repo() {
-  [ -n "$1" ] && echo "$1" | grep -qiE "$WORK_ORGS" && return 0
-  git remote -v 2>/dev/null | awk '{print $2}' | grep -qiE "$WORK_ORGS"
+  [ -n "$1" ] && tvs_url_is_work "$1" && return 0
+  git remote -v 2>/dev/null | awk '{print $2}' | grep -qiE "$TVS_WORK_ORGS"
 }
 
 enforce_commit_identity() {

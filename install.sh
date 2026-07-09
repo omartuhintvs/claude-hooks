@@ -12,8 +12,8 @@ set -e
 
 REPO="https://github.com/omartuhintvs/tvs-agent-shield.git"
 CANON="$HOME/.config/tvs-agent-shield"          # canonical shared location
-GUARD="$CANON/identity-guard.sh"
-GIT_HOOKS_DIR="$CANON/git-hooks"
+GUARD="$CANON/guards/identity-guard.sh"
+GIT_HOOKS_DIR="$CANON/guards/git-hooks"
 TMP_DIR="$(mktemp -d)"
 SRC="$TMP_DIR/tvs-agent-shield"
 
@@ -22,12 +22,13 @@ trap 'rm -rf "$TMP_DIR"' EXIT
 git clone --depth 1 "$REPO" "$SRC" --quiet
 
 # --- shared assets ---
-mkdir -p "$CANON"
-cp "$SRC/identity-guard.sh" "$GUARD"; chmod +x "$GUARD"
+mkdir -p "$CANON/core" "$CANON/guards"
+cp "$SRC"/core/*.sh "$SRC"/core/*.mjs "$SRC"/core/*.py "$SRC"/core/*.json "$CANON/core/"
+cp "$SRC/guards/identity-guard.sh" "$GUARD"; chmod +x "$GUARD"
 
 # --- layer 1: global git hook (universal) ---
 mkdir -p "$GIT_HOOKS_DIR"
-cp "$SRC/git-hooks/_dispatch" "$GIT_HOOKS_DIR/_dispatch"; chmod +x "$GIT_HOOKS_DIR/_dispatch"
+cp "$SRC/guards/git-hooks/_dispatch" "$GIT_HOOKS_DIR/_dispatch"; chmod +x "$GIT_HOOKS_DIR/_dispatch"
 for h in pre-commit pre-push commit-msg prepare-commit-msg post-commit post-checkout \
          post-merge post-rewrite pre-rebase pre-merge-commit applypatch-msg pre-applypatch; do
   ln -sf _dispatch "$GIT_HOOKS_DIR/$h"
@@ -38,6 +39,9 @@ if [ -z "$CURRENT_HP" ]; then
   echo "✓ git core.hooksPath -> $GIT_HOOKS_DIR"
 elif [ "$CURRENT_HP" = "$GIT_HOOKS_DIR" ]; then
   echo "✓ git core.hooksPath already set"
+elif [ "$CURRENT_HP" = "$HOME/.config/tvs-agent-shield/git-hooks" ]; then
+  git config --global core.hooksPath "$GIT_HOOKS_DIR"
+  echo "✓ git core.hooksPath migrated from old location -> $GIT_HOOKS_DIR"
 else
   echo "⚠  global core.hooksPath already set to: $CURRENT_HP — NOT overriding."
   echo "   To enable the git guard, chain $GIT_HOOKS_DIR/_dispatch from your hooks, or:"
@@ -49,11 +53,12 @@ fi
 set +e
 have_jq() { command -v jq >/dev/null 2>&1; }
 
-install_js_plugin() {  # $1 = plugin dir, $2 = plugin filename in agents/<name>/
+install_js_plugin() {  # $1 = plugin dir, $2 = plugin filename in adapters/<name>/
   local dir="$1" file="$2" agentdir="$3"
   mkdir -p "$dir"
-  cp "$SRC/agents/$agentdir/$file" "$dir/$file"
-  cp "$SRC/agents/lib/identity-check.mjs" "$dir/identity-check.mjs"
+  cp "$SRC/adapters/$agentdir/$file" "$dir/$file"
+  cp "$SRC/bridges/identity-check.mjs" "$dir/identity-check.mjs"
+  cp "$SRC/core/policy.mjs" "$dir/policy.mjs"
 }
 
 # Claude Code
@@ -90,14 +95,14 @@ if [ -d "$HOME/.commandcode" ] || command -v commandcode >/dev/null 2>&1; then
   S="$HOME/.commandcode/settings.json"; mkdir -p "$(dirname "$S")"; [ -f "$S" ] || echo '{}' >"$S"
   if have_jq; then
     cp "$S" "$S.bak"
-    jq --slurpfile add "$SRC/agents/commandcode/settings.json" '
+    jq --slurpfile add "$SRC/adapters/commandcode/settings.json" '
       .hooks.PreToolUse = ((.hooks.PreToolUse // [])
         | map(select(([.hooks[]?.command // "" | test("identity-guard\\.sh")] | any) | not)))
         + $add[0].hooks.PreToolUse
     ' "$S" >"$S.tmp" && mv "$S.tmp" "$S"
     echo "✓ CommandCode guard installed (backup: $S.bak)"
   else
-    echo "⚠  CommandCode found but jq missing — merge agents/commandcode/settings.json into $S manually."
+    echo "⚠  CommandCode found but jq missing — merge adapters/commandcode/settings.json into $S manually."
   fi
 fi
 
@@ -128,7 +133,8 @@ fi
 # hermes (Python plugin)
 if [ -d "$HOME/.hermes" ]; then
   d="$HOME/.hermes/plugins/tvs_identity_guard"; mkdir -p "$d"
-  cp "$SRC/agents/hermes/__init__.py" "$SRC/agents/hermes/plugin.yaml" "$d/"
+  cp "$SRC/adapters/hermes/__init__.py" "$SRC/adapters/hermes/plugin.yaml" "$d/"
+  cp "$SRC/core/policy.py" "$d/policy.py"
   echo "✓ hermes plugin installed"
 fi
 

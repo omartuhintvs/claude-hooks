@@ -6,19 +6,19 @@
 import { spawn } from "node:child_process";
 import { homedir } from "node:os";
 import { join } from "node:path";
+// policy.mjs is placed beside this file by install.sh; in the repo it lives at core/policy.mjs.
+import { isCommitCommand } from "./policy.mjs";
 
 const GUARD =
   process.env.TVS_IDENTITY_GUARD ||
-  join(homedir(), ".config", "tvs-agent-shield", "identity-guard.sh");
+  join(homedir(), ".config", "tvs-agent-shield", "guards", "identity-guard.sh");
 
 // Only commit-CREATING git commands are worth checking here; identity-guard.sh guards
 // commits, and `git push` is already covered universally by the git pre-push hook.
 // Everything else is allowed fast so a missing guard never blocks unrelated shell work.
-const COMMITISH =
-  /\bgit\b[^|&;]*\b(commit|amend|cherry-pick|rebase|revert|merge|commit-tree|am)\b/;
 
 export function runIdentityGuard(command, cwd) {
-  if (typeof command !== "string" || !COMMITISH.test(command)) {
+  if (typeof command !== "string" || !isCommitCommand(command)) {
     return Promise.resolve({ block: false });
   }
   return new Promise((resolve) => {

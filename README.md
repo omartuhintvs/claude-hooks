@@ -13,7 +13,7 @@ email. These guards add a layer that blocks dangerous commands and enforces comm
 
 ## Agent coverage
 
-The git layer (`git-hooks/_dispatch`, a global `core.hooksPath` hook) catches every agent
+The git layer (`guards/git-hooks/_dispatch`, a global `core.hooksPath` hook) catches every agent
 because they all shell out to `git`. On top of that, each agent gets a native pre-execution
 guard where its hook API allows one:
 
@@ -21,11 +21,11 @@ guard where its hook API allows one:
 |-------|----------------------|-----------|
 | Claude Code | `identity-guard.sh` | PreToolUse, JSON stdin, exit-2 block |
 | CommandCode | `identity-guard.sh` | PreToolUse (same contract as Claude) |
-| opencode | `agents/opencode/plugin.js` | `tool.execute.before`, throws to block |
-| Kilo Code | `agents/kilocode/plugin.js` | `tool.execute.before`, throws to block |
-| pi | `agents/pi/guard.mjs` | `tool_call` event, `{block:true}` |
-| hermes | `agents/hermes/` | `pre_tool_call` plugin, `{"action":"block"}` |
-| Cline (CLI) | `agents/cline/plugin.mjs` | `beforeTool` plugin (shell wiring best-effort) |
+| opencode | `adapters/opencode/plugin.js` | `tool.execute.before`, throws to block |
+| Kilo Code | `adapters/kilocode/plugin.js` | `tool.execute.before`, throws to block |
+| pi | `adapters/pi/guard.mjs` | `tool_call` event, `{block:true}` |
+| hermes | `adapters/hermes/` | `pre_tool_call` plugin, `{"action":"block"}` |
+| Cline (CLI) | `adapters/cline/plugin.mjs` | `beforeTool` plugin (shell wiring best-effort) |
 | Cline (VSCode) | — none available — | relies solely on the git layer |
 
 The JS/Python plugins shell out to the same `identity-guard.sh`, so there is one source of
@@ -38,7 +38,7 @@ truth for the policy. The git `pre-push` hook owns push enforcement for all agen
 | `block-git-push.sh` | Blocks all `git push` — forces you to push manually |
 | `commit-attribution-guard.py` | Blocks commits containing AI co-author attribution (Co-Authored-By: Claude) |
 | `identity-guard.sh` | Blocks Claude from committing to a TVS org repo under a non-company email |
-| `git-hooks/_dispatch` | Global git hook — enforces a company email on TVS org repos for **all** git tooling (manual git, any AI agent), not just Claude |
+| `guards/git-hooks/_dispatch` | Global git hook — enforces a company email on TVS org repos for **all** git tooling (manual git, any AI agent), not just Claude |
 | `doctl-guard.py` | Blocks all DigitalOcean CLI (`doctl`) commands — must be run manually |
 | `kubectl-guard.py` | Blocks destructive `kubectl` commands (delete, apply, scale, exec, etc.) — read-only verbs pass through |
 | `slackcli-guard.py` | Blocks destructive operations across 10+ CLIs: slackcli, gh, gcloud, aws, docker, heroku, vercel, helm, supabase, ansible, and more |
@@ -60,9 +60,15 @@ The script:
 ### Manual
 
 ```bash
-# Copy hooks
+# Install the shared core + guards + bridges to the canonical location
+mkdir -p ~/.config/tvs-agent-shield
+cp -R core guards bridges ~/.config/tvs-agent-shield/
+
+# Copy hooks (identity-guard.sh sources core/policy.sh from
+# ~/.config/tvs-agent-shield at runtime via TVS_SHIELD_HOME, so core/ only
+# needs to exist there, not in ~/.claude/hooks)
 mkdir -p ~/.claude/hooks
-cp *.py *.sh ~/.claude/hooks/
+cp guards/identity-guard.sh *.py *.sh ~/.claude/hooks/
 chmod +x ~/.claude/hooks/*.sh
 
 # Add to ~/.claude/settings.json
@@ -79,7 +85,8 @@ chmod +x ~/.claude/hooks/*.sh
           { "type": "command", "command": "python3 $HOME/.claude/hooks/doctl-guard.py", "statusMessage": "Checking doctl guardrail..." },
           { "type": "command", "command": "python3 $HOME/.claude/hooks/kubectl-guard.py", "statusMessage": "Checking kubectl guardrail..." },
           { "type": "command", "command": "python3 $HOME/.claude/hooks/commit-attribution-guard.py", "statusMessage": "Checking commit attribution..." },
-          { "type": "command", "command": "$HOME/.claude/hooks/block-git-push.sh", "statusMessage": "Checking git push..." }
+          { "type": "command", "command": "$HOME/.claude/hooks/block-git-push.sh", "statusMessage": "Checking git push..." },
+          { "type": "command", "command": "$HOME/.claude/hooks/identity-guard.sh", "statusMessage": "Checking commit identity..." }
         ]
       }
     ]
@@ -110,7 +117,7 @@ Every other repo is untouched.
 
 - **`identity-guard.sh`** (Claude PreToolUse) — blocks Claude's own `git commit` when the
   effective or injected email is not a company address.
-- **`git-hooks/_dispatch`** (global `core.hooksPath`) — a `pre-commit` + `pre-push` guard
+- **`guards/git-hooks/_dispatch`** (global `core.hooksPath`) — a `pre-commit` + `pre-push` guard
   that catches everything the Claude layer can't: manual `git`, other AI agents, `--amend`,
   rebase, cherry-pick. `pre-push` fails **closed** — if it can't enumerate outgoing commits
   it refuses the push.

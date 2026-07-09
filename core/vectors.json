@@ -1,0 +1,9 @@
+{
+  "_comment": "Shared parity vectors — every language's policy test asserts these so bash/JS/Python cannot drift.",
+  "workEmails":    ["alice@technovativesolutions.co.uk", "BOB@DigiProdPass.com", "x.y+z@technovativesolutions.co.uk"],
+  "nonWorkEmails": ["someone@gmail.com", "ext@contractor.io", "evil@technovativesolutions.co.uk.attacker.com", "a@nottechnovativesolutions.co.uk", ""],
+  "workUrls":      ["git@github.com:digiprodpass/x.git", "https://github.com/technovativesolutions/y", "git@github.com:DigiProdPass/z.git"],
+  "nonWorkUrls":   ["git@github.com:someorg/y.git", "https://evil.example/xdigiprodpass/x", "git@github.com:nadimtuhin/blog.git"],
+  "commitCommands":    ["git commit -m x", "GIT_AUTHOR_EMAIL=a@b.co git commit", "git   commit -m x", "git -c user.email=a@b.co commit", "git cherry-pick abc", "git am patch"],
+  "nonCommitCommands": ["ls -la", "git status", "git push origin main", "git diff HEAD", "git log --oneline"]
+}
