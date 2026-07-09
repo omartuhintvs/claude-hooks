@@ -66,19 +66,24 @@ if [ -d "$HOME/.claude" ]; then
   mkdir -p "$HOME/.claude/hooks"
   cp "$SRC"/*.py "$HOME/.claude/hooks/" 2>/dev/null || true
   cp "$SRC"/*.sh "$HOME/.claude/hooks/" 2>/dev/null || true
+  # write-guard dispatcher + its per-CLI checkers and the rtk rewriters
+  cp "$SRC/guards/write-guard.py" "$HOME/.claude/hooks/write-guard.py"
+  cp -R "$SRC/core/write-policy" "$HOME/.claude/hooks/write-policy"
+  cp -R "$SRC/rewriters" "$HOME/.claude/hooks/rewriters"
+  rm -f "$HOME/.claude/hooks/slackcli-guard.py"   # superseded by write-guard.py
   cp "$GUARD" "$HOME/.claude/hooks/identity-guard.sh"
   chmod +x "$HOME/.claude/hooks/"*.sh
   rm -f "$HOME/.claude/hooks/install.sh"
   S="$HOME/.claude/settings.json"; [ -f "$S" ] || { mkdir -p "$(dirname "$S")"; echo '{}' >"$S"; }
   if have_jq; then
     HOOK_JSON='{"matcher":"Bash","hooks":[
-      {"type":"command","command":"python3 $HOME/.claude/hooks/slackcli-guard.py"},
+      {"type":"command","command":"python3 $HOME/.claude/hooks/write-guard.py"},
       {"type":"command","command":"python3 $HOME/.claude/hooks/doctl-guard.py"},
       {"type":"command","command":"python3 $HOME/.claude/hooks/kubectl-guard.py"},
       {"type":"command","command":"python3 $HOME/.claude/hooks/commit-attribution-guard.py"},
       {"type":"command","command":"$HOME/.claude/hooks/identity-guard.sh"},
       {"type":"command","command":"$HOME/.claude/hooks/block-git-push.sh"}]}'
-    OURS='slackcli-guard\.py|doctl-guard\.py|kubectl-guard\.py|commit-attribution-guard\.py|identity-guard\.sh|block-git-push\.sh'
+    OURS='write-guard\.py|slackcli-guard\.py|doctl-guard\.py|kubectl-guard\.py|commit-attribution-guard\.py|identity-guard\.sh|block-git-push\.sh'
     cp "$S" "$S.bak"
     jq --argjson hook "$HOOK_JSON" --arg ours "$OURS" '
       .hooks.PreToolUse = ((.hooks.PreToolUse // [])
