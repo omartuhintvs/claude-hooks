@@ -1,10 +1,35 @@
-# claude-hooks
+# tvs-agent-shield
 
-Production-grade safety hooks for [Claude Code](https://claude.ai/code) that prevent destructive, accidental, or policy-violating commands before they run.
+Safety guards for AI coding agents that prevent destructive, accidental, or
+policy-violating commands before they run — and enforce that commits to TVS org repos
+carry a company email. Works across Claude Code, CommandCode, opencode, Kilo Code, Cline,
+pi, and hermes, with a global git hook as the universal backstop.
 
 ## Why
 
-Claude Code is powerful — which means it can accidentally push to production, delete Slack messages, or run `kubectl delete`. These hooks add a guardrail layer that blocks dangerous commands and requires human confirmation.
+AI coding agents are powerful — which means they can accidentally push to production,
+delete Slack messages, run `kubectl delete`, or commit to a company repo under a personal
+email. These guards add a layer that blocks dangerous commands and enforces commit identity.
+
+## Agent coverage
+
+The git layer (`git-hooks/_dispatch`, a global `core.hooksPath` hook) catches every agent
+because they all shell out to `git`. On top of that, each agent gets a native pre-execution
+guard where its hook API allows one:
+
+| Agent | Native pre-exec guard | Mechanism |
+|-------|----------------------|-----------|
+| Claude Code | `identity-guard.sh` | PreToolUse, JSON stdin, exit-2 block |
+| CommandCode | `identity-guard.sh` | PreToolUse (same contract as Claude) |
+| opencode | `agents/opencode/plugin.js` | `tool.execute.before`, throws to block |
+| Kilo Code | `agents/kilocode/plugin.js` | `tool.execute.before`, throws to block |
+| pi | `agents/pi/guard.mjs` | `tool_call` event, `{block:true}` |
+| hermes | `agents/hermes/` | `pre_tool_call` plugin, `{"action":"block"}` |
+| Cline (CLI) | `agents/cline/plugin.mjs` | `beforeTool` plugin (shell wiring best-effort) |
+| Cline (VSCode) | — none available — | relies solely on the git layer |
+
+The JS/Python plugins shell out to the same `identity-guard.sh`, so there is one source of
+truth for the policy. The git `pre-push` hook owns push enforcement for all agents.
 
 ## Hooks
 
@@ -12,6 +37,8 @@ Claude Code is powerful — which means it can accidentally push to production, 
 |------|---------------|
 | `block-git-push.sh` | Blocks all `git push` — forces you to push manually |
 | `commit-attribution-guard.py` | Blocks commits containing AI co-author attribution (Co-Authored-By: Claude) |
+| `identity-guard.sh` | Blocks Claude from committing to a TVS org repo under a non-company email |
+| `git-hooks/_dispatch` | Global git hook — enforces a company email on TVS org repos for **all** git tooling (manual git, any AI agent), not just Claude |
 | `doctl-guard.py` | Blocks all DigitalOcean CLI (`doctl`) commands — must be run manually |
 | `kubectl-guard.py` | Blocks destructive `kubectl` commands (delete, apply, scale, exec, etc.) — read-only verbs pass through |
 | `slackcli-guard.py` | Blocks destructive operations across 10+ CLIs: slackcli, gh, gcloud, aws, docker, heroku, vercel, helm, supabase, ansible, and more |
@@ -20,12 +47,14 @@ Claude Code is powerful — which means it can accidentally push to production, 
 ## Installation
 
 ```bash
-curl -fsSL https://raw.githubusercontent.com/omartuhintvs/claude-hooks/main/install.sh | bash
+curl -fsSL https://raw.githubusercontent.com/omartuhintvs/tvs-agent-shield/main/install.sh | bash
 ```
 
 The script:
-- Copies all hooks to `~/.claude/hooks/`
-- Merges hook config into `~/.claude/settings.json` (backs up existing file first)
+- Installs the global git hook (`core.hooksPath`) — the universal backstop for every agent
+- Detects which agents are installed and wires each one's native guard
+- Copies the shared `identity-guard.sh` to `~/.config/tvs-agent-shield/`
+- Merges Claude/CommandCode settings (backs up first; never wipes your existing hooks)
 - Requires `jq` for auto-merging settings — falls back to manual instructions if not found
 
 ### Manual
@@ -71,6 +100,39 @@ kubectl get pods
 ```
 
 > **RTK rewrite hook** (`rtk-rewrite.sh`) is optional — only useful if you use the `rtk` CLI tool.
+
+## TVS commit identity enforcement
+
+Two layers keep personal emails off company history. A repo is treated as a **TVS repo**
+when a remote URL is in the `technovativesolutions` or `digiprodpass` GitHub org. On those
+repos the commit email must end in `@technovativesolutions.co.uk` or `@digiprodpass.com`.
+Every other repo is untouched.
+
+- **`identity-guard.sh`** (Claude PreToolUse) — blocks Claude's own `git commit` when the
+  effective or injected email is not a company address.
+- **`git-hooks/_dispatch`** (global `core.hooksPath`) — a `pre-commit` + `pre-push` guard
+  that catches everything the Claude layer can't: manual `git`, other AI agents, `--amend`,
+  rebase, cherry-pick. `pre-push` fails **closed** — if it can't enumerate outgoing commits
+  it refuses the push.
+
+Set your company identity once:
+
+```bash
+git config --global user.email you@technovativesolutions.co.uk
+```
+
+By default only the **committer** (the person committing) must be a company address, so
+external or rebased foreign-authored commits don't false-block. To also require the
+**author** on a given repo:
+
+```bash
+git config hooks.requireWorkAuthor true
+```
+
+**Limits:** client-side hooks are bypassable (`git push --no-verify`,
+`git -c core.hooksPath= …`). This stops accidents, not a determined bypass. Repos that set
+their own local `core.hooksPath` (husky, lefthook) shadow the global guard — identity there
+relies on your global `user.email`.
 
 ## How hooks work
 

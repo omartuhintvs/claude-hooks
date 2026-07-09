@@ -1,0 +1,6 @@
+name: tvs_identity_guard
+version: 1.0.0
+description: Block commits to TVS org repos under a non-company email.
+entrypoint: __init__.py
+hooks:
+  - pre_tool_call

@@ -1,0 +1,119 @@
+#!/bin/bash
+# TVS git identity dispatcher — enforces that commits to TVS org repos
+# (github.com/technovativesolutions/*, github.com/digiprodpass/*) carry a company
+# email (@technovativesolutions.co.uk or @digiprodpass.com), so personal addresses
+# never leak onto company history.
+#
+# Installed as a GLOBAL hook via `git config --global core.hooksPath <dir>`, which
+# makes git resolve EVERY hook type from that dir. This script is therefore symlinked
+# to each hook name and passes through to the repo's own hook of that name (resolved
+# via git-common-dir, correct for linked worktrees/submodules where .git is a file).
+# Non-TVS repos are left completely untouched.
+#
+# pre-commit  : the COMMITTER (always the person committing) must use a company email.
+# pre-push    : backstop for paths pre-commit can't see (--amend, rebase, cherry-pick,
+#               --author=, --no-verify) — scans every outgoing commit's committer.
+# Opt-in strict mode (per repo): `git config hooks.requireWorkAuthor true` also requires
+# the AUTHOR to be a company email (off by default so external/foreign authors on a
+# rebase or imported branch don't false-block).
+#
+# NOTE: client-side hooks can be bypassed (`git push --no-verify`,
+# `git -c core.hooksPath= ...`); this guards accidents, not a determined bypass.
+
+name=$(basename "$0")
+common=$(git rev-parse --git-common-dir 2>/dev/null)
+
+WORK_DOMAINS='@(technovativesolutions\.co\.uk|digiprodpass\.com)$'
+WORK_ORGS='[:/](technovativesolutions|digiprodpass)/'
+
+ident_email() { git var "$1" 2>/dev/null | sed -n 's/.*<\(.*\)>.*/\1/p'; }
+is_work_email() { echo "$1" | grep -qiE "$WORK_DOMAINS"; }
+strict_author() { [ "$(git config --bool hooks.requireWorkAuthor 2>/dev/null)" = true ]; }
+
+# A repo is TVS if any configured remote URL is in a TVS org. $1, when given, is a
+# push DESTINATION url that takes precedence (catches explicit-URL pushes).
+is_work_repo() {
+  [ -n "$1" ] && echo "$1" | grep -qiE "$WORK_ORGS" && return 0
+  git remote -v 2>/dev/null | awk '{print $2}' | grep -qiE "$WORK_ORGS"
+}
+
+enforce_commit_identity() {
+  is_work_repo "" || return 0
+  local committer author
+  committer=$(ident_email GIT_COMMITTER_IDENT)
+  if ! is_work_email "$committer"; then
+    echo "COMMIT BLOCKED: TVS repo — committer email ${committer:-unset} is not a company address (@technovativesolutions.co.uk / @digiprodpass.com). Set it: git config user.email you@technovativesolutions.co.uk" >&2
+    return 1
+  fi
+  if strict_author; then
+    author=$(ident_email GIT_AUTHOR_IDENT)
+    if ! is_work_email "$author"; then
+      echo "COMMIT BLOCKED: TVS repo (strict author mode) — author email ${author:-unset} is not a company address." >&2
+      return 1
+    fi
+  fi
+  return 0
+}
+
+# Scan outgoing commits before they leave the machine. Fails CLOSED — any enumeration
+# error blocks. $1 = pre-push stdin (ref lines), $2 = remote name, $3 = destination URL.
+enforce_push_identity() {
+  is_work_repo "$3" || return 0
+  local lref lsha rref rsha range raw sha ce ae dest_is_remote=0
+  git remote get-url "$2" >/dev/null 2>&1 && dest_is_remote=1
+  while read -r lref lsha rref rsha; do
+    [ -z "$lsha" ] && continue
+    echo "$lsha" | grep -qE '^0+$' && continue          # branch deletion
+    if echo "$rsha" | grep -qE '^0+$'; then
+      # New branch: trust only the DEST remote's own refs as a boundary. An explicit
+      # URL push (not a configured remote) has no trusted boundary → scan whole history.
+      if [ "$dest_is_remote" = 1 ]; then
+        range="$lsha --not --remotes=$2"
+      else
+        range="$lsha"
+      fi
+    else
+      range="$rsha..$lsha"
+    fi
+    if ! raw=$(git log --format='%H %ce %ae' $range 2>/dev/null); then
+      echo "PUSH BLOCKED: TVS repo — cannot enumerate outgoing commits ($range). Refusing to push." >&2
+      return 1
+    fi
+    while read -r sha ce ae; do
+      [ -z "$sha" ] && continue
+      if ! is_work_email "$ce"; then
+        echo "PUSH BLOCKED: TVS repo — commit ${sha:0:12} committer ${ce:-<empty>} is not a company address. Rewrite it before pushing." >&2
+        return 1
+      fi
+      if strict_author && ! is_work_email "$ae"; then
+        echo "PUSH BLOCKED: TVS repo (strict author) — commit ${sha:0:12} author ${ae:-<empty>} is not a company address." >&2
+        return 1
+      fi
+    done <<INNER
+$raw
+INNER
+  done <<EOF
+$1
+EOF
+  return 0
+}
+
+[ "$name" = pre-commit ] && { enforce_commit_identity || exit 1; }
+
+local_hook="$common/hooks/$name"
+
+# pre-push carries ref lines on stdin — capture, check, then forward stdin intact.
+if [ "$name" = pre-push ]; then
+  push_input=$(cat)
+  enforce_push_identity "$push_input" "$1" "$2" || exit 1
+  if [ -n "$common" ] && [ -x "$local_hook" ] && [ "$local_hook" != "$0" ]; then
+    printf '%s\n' "$push_input" | "$local_hook" "$@"; exit $?
+  fi
+  exit 0
+fi
+
+# Pass through to the repo's own hook of this name, if any (never re-exec self).
+if [ -n "$common" ] && [ -x "$local_hook" ] && [ "$local_hook" != "$0" ]; then
+  exec "$local_hook" "$@"
+fi
+exit 0

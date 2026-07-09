@@ -1,0 +1,12 @@
+{
+  "hooks": {
+    "PreToolUse": [
+      {
+        "matcher": "shell",
+        "hooks": [
+          { "type": "command", "command": "$HOME/.config/tvs-agent-shield/identity-guard.sh", "timeout": 5 }
+        ]
+      }
+    ]
+  }
+}
