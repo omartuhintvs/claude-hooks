@@ -168,7 +168,8 @@ Hooks output a JSON decision:
 - **Allow**: exit code `0` with `permissionDecision: "allow"`
 - **Block**: exit code `2` — stderr message is shown to Claude
 
-Claude Code runs hooks in order. First block wins.
+`guard-all.sh` runs the whole chain itself and resolves one decision — `deny > ask >
+allow`, so a later hard deny is never masked by an earlier ask.
 
 ## Customising
 
@@ -184,13 +185,23 @@ Guards and rewriters have their own suites under `tests/` (no framework — plai
 `python3`/`bash`, each prints `pass=N fail=0`):
 
 ```bash
-python3 tests/policy.test.py     # identity policy core (parity with .sh/.mjs)
+bash    backlog/checks.sh            # the whole gate — every suite below, must be all-green
+
+python3 tests/policy.test.py         # identity policy core (parity with .sh/.mjs)
 bash    tests/policy.test.sh
 node    tests/policy.test.mjs
-python3 tests/write-policy.test.py   # 14 write-guard checkers, data-driven from core/write-vectors.json
-bash    tests/rtk-rewrite.test.sh    # rtk rewriters, JSON-stdin fixtures
+python3 tests/write-policy.test.py   # 16 write-guard checkers, data-driven from core/write-vectors.json
+bash    tests/git-push.test.sh       # push-block hook
 bash    tests/integration.test.sh
+bash    tests/guard-all.test.sh      # unified chain: precedence, fail-policy, --ask-block, full vector replay
+node    tests/guard-plugin.test.mjs  # JS bridge (guard-check.mjs) block/allow decisions
+python3 tests/hermes-guard.test.py   # hermes adapter fail-closed contract
+bash    tests/rtk-rewrite.test.sh    # rtk rewriters, JSON-stdin fixtures
+node    tests/rewrite-plugin.test.mjs # rtk rewrite bridge
 ```
+
+Cross-agent install + behavior is proven in containers: `bash docker/run-matrix.sh`
+builds and runs the claude / opencode / codex legs and prints a per-agent PASS/FAIL table.
 
 Adding a checker or rewriter plugin: drop the file (see the drop-in note above),
 add its cases to `core/write-vectors.json` (checkers) or the rewriter fixtures,
