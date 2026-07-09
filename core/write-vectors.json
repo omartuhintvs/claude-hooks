@@ -524,6 +524,30 @@
     {
       "cmd": "psql mydb <<SQL\nSELECT count(*) FROM users;\nSQL",
       "expect": "allow"
+    },
+    {
+      "cmd": "doctl compute droplet delete x",
+      "expect": "deny"
+    },
+    {
+      "cmd": "echo mydoctly is not a cli tool",
+      "expect": "allow"
+    },
+    {
+      "cmd": "kubectl delete pod x",
+      "expect": "deny"
+    },
+    {
+      "cmd": "kubectl get pods",
+      "expect": "allow"
+    },
+    {
+      "cmd": "git commit -m \"x\n\nCo-Authored-By: Claude <noreply@anthropic.com>\"",
+      "expect": "deny"
+    },
+    {
+      "cmd": "git commit -m normal",
+      "expect": "allow"
     }
   ]
 }

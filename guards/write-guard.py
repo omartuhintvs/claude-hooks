@@ -3,8 +3,7 @@
 
 Auto-discovers per-CLI checkers in core/write-policy/ (drop-in plugins): each
 module exposes check(cmd) and an ORDER = N priority. Runs them by (ORDER,
-filename); first returning a decision wins. kubectl intentionally omitted —
-kubectl-guard.py owns it (exit-code style, richer verb set)."""
+filename); first returning a decision wins."""
 import glob
 import importlib.util
 import json

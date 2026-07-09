@@ -4,7 +4,7 @@
 set -uo pipefail
 
 REPO_ROOT="$(cd "$(dirname "$0")/.." && pwd)"
-HOOK="$REPO_ROOT/rtk-rewrite.sh"
+HOOK="$REPO_ROOT/guards/rtk-rewrite.sh"
 
 if ! command -v rtk >/dev/null 2>&1 || ! command -v jq >/dev/null 2>&1; then
   echo "SKIP: rtk or jq missing — rtk-rewrite.sh no-ops without them"

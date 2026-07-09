@@ -1,0 +1,61 @@
+# Tier A (opencode leg) — installs the opencode JS plugin via install.sh, then drives the
+# shared guard-check.mjs bridge in-process against the installed guard-all.sh chain.
+#
+# CAVEAT — IN-PROCESS SIMULATION: opencode's own plugin loader/runtime is NOT invoked here
+# (opencode isn't installed in this image). This proves the installed plugin files + the
+# guard-all chain agree on decisions when driven directly by Node — not that opencode's
+# `tool.execute.before` wiring calls the plugin correctly. See docker/README.md.
+FROM node:20-slim
+
+RUN apt-get update && apt-get install -y --no-install-recommends \
+      git jq python3 ca-certificates bash \
+    && rm -rf /var/lib/apt/lists/*
+
+WORKDIR /src
+COPY . /src
+
+RUN git config --global user.email ci@technovativesolutions.co.uk \
+    && git config --global user.name "ci" \
+    && mkdir -p /root/.config/opencode          # pretend opencode is present so the plugin installs
+
+# install.sh clones the committed HEAD of /src — snapshot the COPYed working tree so the
+# clone sees the full guard stack (incl. any uncommitted changes).
+RUN git -C /src add -A && git -C /src commit -qm "ci: snapshot working tree" || true
+
+# Install from the local tree (committed HEAD) instead of GitHub.
+RUN TVS_SHIELD_REPO=/src bash /src/install.sh
+
+# Sanity: the opencode plugin + its bridge siblings must actually be installed.
+RUN test -f /root/.config/opencode/plugin/plugin.js \
+    && test -f /root/.config/opencode/plugin/guard-check.mjs \
+    && test -f /root/.config/opencode/plugin/policy.mjs \
+    && echo "✓ opencode plugin files installed"
+
+# leg 2 only asserts the one thing that must survive without python3: identity still
+# blocks (write-policy legitimately fails OPEN without python3, so the full vector replay
+# from guard-plugin.test.mjs does not apply here — see guards/guard-all.sh degraded mode).
+# Import the INSTALLED plugin bridge (policy.mjs sits beside it there — install co-locates
+# them; the repo bridges/ dir has no sibling policy.mjs). Drives the installed guard-all.
+RUN printf '%s\n' \
+      'import { runGuardAll } from "/root/.config/opencode/plugin/guard-check.mjs";' \
+      'const cmd = "cd /tmp/technovativesolutions/r && git -c user.email=bad@gmail.com commit -m x";' \
+      'const res = await runGuardAll(cmd, "/src");' \
+      'if (res.block === true) { console.log("PASS: degraded (no python3) -> identity still blocks"); process.exit(0); }' \
+      'console.log(`FAIL: degraded identity check — got block=${res.block}`); process.exit(1);' \
+      > /src/docker/opencode-degraded-check.mjs
+
+CMD ["bash", "-lc", "\
+  set -uo pipefail; \
+  echo '== leg 1: guard-plugin smoke (python3 present) =='; \
+  node /src/tests/guard-plugin.test.mjs; r1=$?; \
+  echo '== leg 2: identity check, python3 removed from PATH (degraded mode) =='; \
+  NOPY=$(mktemp -d); \
+  for b in node bash jq git grep sed awk cat dirname env printf mktemp head; do \
+    p=$(command -v \"$b\" 2>/dev/null); [ -n \"$p\" ] && ln -sf \"$p\" \"$NOPY/$b\"; \
+  done; \
+  PATH=\"$NOPY\" node /src/docker/opencode-degraded-check.mjs; r2=$?; \
+  rm -rf \"$NOPY\"; \
+  echo '----'; \
+  if [ $r1 -eq 0 ] && [ $r2 -eq 0 ]; then echo 'OPENCODE SMOKE: PASS'; exit 0; \
+  else echo 'OPENCODE SMOKE: FAIL'; exit 1; fi \
+"]

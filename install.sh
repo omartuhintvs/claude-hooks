@@ -24,9 +24,18 @@ trap 'rm -rf "$TMP_DIR"' EXIT
 git clone --depth 1 "$REPO" "$SRC" --quiet
 
 # --- shared assets ---
+# The canonical dir hosts the FULL guard stack so every hook-capable agent (via the
+# JS/hermes bridges that point at $CANON/guards/guard-all.sh) gets the same guards.
 mkdir -p "$CANON/core" "$CANON/guards"
 cp "$SRC"/core/*.sh "$SRC"/core/*.mjs "$SRC"/core/*.py "$SRC"/core/*.json "$CANON/core/"
+cp -R "$SRC/core/write-policy" "$CANON/core/write-policy"   # write-guard.py finds ../core/write-policy
 cp "$SRC/guards/identity-guard.sh" "$GUARD"; chmod +x "$GUARD"
+cp "$SRC/guards/guard-all.sh" "$CANON/guards/guard-all.sh"
+cp "$SRC/guards/write-guard.py" "$CANON/guards/write-guard.py"
+cp "$SRC/guards/block-git-push.sh" "$CANON/guards/block-git-push.sh"
+cp "$SRC/guards/rtk-rewrite.sh" "$CANON/guards/rtk-rewrite.sh" 2>/dev/null || true
+cp -R "$SRC/guards/rewriters" "$CANON/guards/rewriters" 2>/dev/null || true  # rtk-rewrite finds ./rewriters
+chmod +x "$CANON/guards/"*.sh
 
 # --- layer 1: global git hook (universal) ---
 mkdir -p "$GIT_HOOKS_DIR"
@@ -59,33 +68,40 @@ install_js_plugin() {  # $1 = plugin dir, $2 = plugin filename in adapters/<name
   local dir="$1" file="$2" agentdir="$3"
   mkdir -p "$dir"
   cp "$SRC/adapters/$agentdir/$file" "$dir/$file"
-  cp "$SRC/bridges/identity-check.mjs" "$dir/identity-check.mjs"
+  cp "$SRC/bridges/guard-check.mjs" "$dir/guard-check.mjs"      # full guard-all bridge
+  cp "$SRC/bridges/rewrite-check.mjs" "$dir/rewrite-check.mjs"  # rtk rewrite bridge
+  cp "$SRC/bridges/identity-check.mjs" "$dir/identity-check.mjs" # legacy, still shipped
   cp "$SRC/core/policy.mjs" "$dir/policy.mjs"
 }
 
 # Claude Code
 if [ -d "$HOME/.claude" ]; then
   mkdir -p "$HOME/.claude/hooks"
-  cp "$SRC"/*.py "$HOME/.claude/hooks/" 2>/dev/null || true
-  cp "$SRC"/*.sh "$HOME/.claude/hooks/" 2>/dev/null || true
-  # write-guard dispatcher + its per-CLI checkers and the rtk rewriters
+  # The full guard stack lives beside guard-all.sh so it self-locates its siblings.
+  cp "$SRC/guards/guard-all.sh" "$HOME/.claude/hooks/guard-all.sh"
   cp "$SRC/guards/write-guard.py" "$HOME/.claude/hooks/write-guard.py"
+  cp "$SRC/guards/block-git-push.sh" "$HOME/.claude/hooks/block-git-push.sh"
+  cp "$SRC/guards/rtk-rewrite.sh" "$HOME/.claude/hooks/rtk-rewrite.sh" 2>/dev/null || true
   cp -R "$SRC/core/write-policy" "$HOME/.claude/hooks/write-policy"
-  cp -R "$SRC/rewriters" "$HOME/.claude/hooks/rewriters"
-  rm -f "$HOME/.claude/hooks/slackcli-guard.py"   # superseded by write-guard.py
+  cp -R "$SRC/guards/rewriters" "$HOME/.claude/hooks/rewriters"
+  # write-guard.py finds write-policy/ as a sibling here (checked before ../core/write-policy).
+  rm -f "$HOME/.claude/hooks/slackcli-guard.py" \
+        "$HOME/.claude/hooks/doctl-guard.py" \
+        "$HOME/.claude/hooks/kubectl-guard.py" \
+        "$HOME/.claude/hooks/commit-attribution-guard.py"   # now write-policy plugins
   cp "$GUARD" "$HOME/.claude/hooks/identity-guard.sh"
   chmod +x "$HOME/.claude/hooks/"*.sh
   rm -f "$HOME/.claude/hooks/install.sh"
   S="$HOME/.claude/settings.json"; [ -f "$S" ] || { mkdir -p "$(dirname "$S")"; echo '{}' >"$S"; }
   if have_jq; then
+    # Single unified hook: guard-all runs the whole chain (write-policy driver +
+    # identity + push) and emits one decision. Default ask policy (Claude reads JSON).
+    # guard-all blocks first; rtk-rewrite runs after (mutates surviving commands via
+    # updatedInput — a no-op unless the `rtk` CLI is present).
     HOOK_JSON='{"matcher":"Bash","hooks":[
-      {"type":"command","command":"python3 $HOME/.claude/hooks/write-guard.py"},
-      {"type":"command","command":"python3 $HOME/.claude/hooks/doctl-guard.py"},
-      {"type":"command","command":"python3 $HOME/.claude/hooks/kubectl-guard.py"},
-      {"type":"command","command":"python3 $HOME/.claude/hooks/commit-attribution-guard.py"},
-      {"type":"command","command":"$HOME/.claude/hooks/identity-guard.sh"},
-      {"type":"command","command":"$HOME/.claude/hooks/block-git-push.sh"}]}'
-    OURS='write-guard\.py|slackcli-guard\.py|doctl-guard\.py|kubectl-guard\.py|commit-attribution-guard\.py|identity-guard\.sh|block-git-push\.sh'
+      {"type":"command","command":"$HOME/.claude/hooks/guard-all.sh"},
+      {"type":"command","command":"$HOME/.claude/hooks/rtk-rewrite.sh"}]}'
+    OURS='guard-all\.sh|rtk-rewrite\.sh|write-guard\.py|slackcli-guard\.py|doctl-guard\.py|kubectl-guard\.py|commit-attribution-guard\.py|identity-guard\.sh|block-git-push\.sh'
     cp "$S" "$S.bak"
     jq --argjson hook "$HOOK_JSON" --arg ours "$OURS" '
       .hooks.PreToolUse = ((.hooks.PreToolUse // [])
@@ -104,7 +120,7 @@ if [ -d "$HOME/.commandcode" ] || command -v commandcode >/dev/null 2>&1; then
     cp "$S" "$S.bak"
     jq --slurpfile add "$SRC/adapters/commandcode/settings.json" '
       .hooks.PreToolUse = ((.hooks.PreToolUse // [])
-        | map(select(([.hooks[]?.command // "" | test("identity-guard\\.sh")] | any) | not)))
+        | map(select(([.hooks[]?.command // "" | test("guard-all\\.sh|identity-guard\\.sh")] | any) | not)))
         + $add[0].hooks.PreToolUse
     ' "$S" >"$S.tmp" && mv "$S.tmp" "$S"
     echo "✓ CommandCode guard installed (backup: $S.bak)"
