@@ -9,7 +9,7 @@ S="$HOME/.claude/settings.json"
 fail=0
 
 echo "== wiring: installed files =="
-for f in write-guard.py block-git-push.sh identity-guard.sh commit-attribution-guard.sh; do
+for f in write-guard.py block-git-push.sh identity-guard.sh commit-attribution-guard.py; do
   if [ -f "$H/$f" ]; then echo "  ok  $f"; else echo "  MISSING  $f"; fail=1; fi
 done
 for d in write-policy rewriters; do
