@@ -41,8 +41,10 @@ truth for the policy. The git `pre-push` hook owns push enforcement for all agen
 | `guards/git-hooks/_dispatch` | Global git hook — enforces a company email on TVS org repos for **all** git tooling (manual git, any AI agent), not just Claude |
 | `doctl-guard.py` | Blocks all DigitalOcean CLI (`doctl`) commands — must be run manually |
 | `kubectl-guard.py` | Blocks destructive `kubectl` commands (delete, apply, scale, exec, etc.) — read-only verbs pass through |
-| `slackcli-guard.py` | Blocks destructive operations across 10+ CLIs: slackcli, gh, gcloud, aws, docker, heroku, vercel, helm, supabase, ansible, and more |
+| `write-guard.py` | Dispatcher over per-CLI checkers in `core/write-policy/` — blocks (or `ask`s) destructive ops across 14 CLIs: slackcli, gogcli, acli, gh, gcloud, psql/mysql, aws, docker, heroku, vercel, helm, supabase, ansible, rsync |
 | `rtk-rewrite.sh` | Transparently rewrites raw commands to their `rtk` equivalents when available |
+
+Both dispatchers are **drop-in plugin** based: adding a tool means dropping one file in `core/write-policy/` (a `check(cmd)` + `ORDER = N`) or `rewriters/` (a `rewrite_<tool>()` + `register_rewriter N rewrite_<tool>`). The dispatchers auto-discover and run plugins in `ORDER` priority — no dispatcher edits.
 
 ## Installation
 
@@ -69,6 +71,8 @@ cp -R core guards bridges ~/.config/tvs-agent-shield/
 # needs to exist there, not in ~/.claude/hooks)
 mkdir -p ~/.claude/hooks
 cp guards/identity-guard.sh *.py *.sh ~/.claude/hooks/
+cp guards/write-guard.py ~/.claude/hooks/
+cp -R core/write-policy rewriters ~/.claude/hooks/
 chmod +x ~/.claude/hooks/*.sh
 
 # Add to ~/.claude/settings.json
@@ -81,7 +85,7 @@ chmod +x ~/.claude/hooks/*.sh
       {
         "matcher": "Bash",
         "hooks": [
-          { "type": "command", "command": "python3 $HOME/.claude/hooks/slackcli-guard.py", "statusMessage": "Checking command safety..." },
+          { "type": "command", "command": "python3 $HOME/.claude/hooks/write-guard.py", "statusMessage": "Checking command safety..." },
           { "type": "command", "command": "python3 $HOME/.claude/hooks/doctl-guard.py", "statusMessage": "Checking doctl guardrail..." },
           { "type": "command", "command": "python3 $HOME/.claude/hooks/kubectl-guard.py", "statusMessage": "Checking kubectl guardrail..." },
           { "type": "command", "command": "python3 $HOME/.claude/hooks/commit-attribution-guard.py", "statusMessage": "Checking commit attribution..." },
